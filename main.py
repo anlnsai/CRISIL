@@ -1,36 +1,42 @@
 import json
+import os
 import requests
 import configparser
 
 config = configparser.ConfigParser()
 config.read('config.ini')
+BASE_URL = config.get("URL", "BaseURL")
+CACHE = config.getboolean("Settings", "cache")
+CACHE_FILE = config.get("Settings", "cache_file")
+print("Enabled Cache:", CACHE)
 cache = {}
 
 
 def cache_result(func):
     def wrapper(*args, **kwargs):
         global cache
-        key = func.__name__ + str(args) + str(kwargs)
-        try:
-            if not cache:
-                with open('cache.json', 'r') as f:
-                    cache = json.load(f)
-            if key in cache:
-                return cache[key]
-        except (FileNotFoundError, json.JSONDecodeError):
-            pass
+        if CACHE:
+            key = func.__name__ + str(args) + str(kwargs)
+            try:
+                if not cache:
+                    with open(CACHE_FILE) as f:
+                        cache = json.load(f)
+                if key in cache:
+                    return cache[key]
+            except (FileNotFoundError, json.JSONDecodeError):
+                pass
 
-        result = func(*args, **kwargs)
-        with open('cache.json', 'w') as cache_file:
-            cache[key] = result
-            json.dump(cache, cache_file)
+            result = func(*args, **kwargs)
+            with open(CACHE_FILE, 'w') as cache_file:
+                cache[key] = result
+                json.dump(cache, cache_file)
+        else:
+            if os.path.exists(CACHE_FILE):
+                os.remove(CACHE_FILE)
+            result = func(*args, **kwargs)
 
         return result
-
     return wrapper
-
-
-BASE_URL = config.get("URL", "BaseURL")
 
 
 def get_request(endpoint: str, dataFormat=True):
